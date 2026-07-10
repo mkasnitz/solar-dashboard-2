@@ -1,1 +1,62 @@
-{"updated_at": "2026-07-10T11:37:02.639253+00:00", "source": "Marktstammdatenregister CSV export(s)", "count": 0, "items": []}
+{
+  "updated_at": "2026-07-10T10:00:00Z",
+  "source": "placeholder",
+  "count": 5,
+  "items": [
+    {
+      "unit_id": "DEMO-001",
+      "name": "Solarpark Demo Brandenburg",
+      "operator": "Demo Operator",
+      "state": "Brandenburg",
+      "city": "Werneuchen",
+      "type": "Freifläche",
+      "power_kw": 187000,
+      "lat": 52.677,
+      "lon": 13.771
+    },
+    {
+      "unit_id": "DEMO-002",
+      "name": "Solarpark Demo Sachsen",
+      "operator": "Demo Operator",
+      "state": "Sachsen",
+      "city": "Böhlen",
+      "type": "Freifläche",
+      "power_kw": 605000,
+      "lat": 51.191,
+      "lon": 12.368
+    },
+    {
+      "unit_id": "DEMO-003",
+      "name": "PV Demo Bayern",
+      "operator": "Demo Operator",
+      "state": "Bayern",
+      "city": "München",
+      "type": "Dach",
+      "power_kw": 3000,
+      "lat": 48.134,
+      "lon": 11.69
+    },
+    {
+      "unit_id": "DEMO-004",
+      "name": "PV Demo NRW",
+      "operator": "Demo Operator",
+      "state": "Nordrhein-Westfalen",
+      "city": "Köln",
+      "type": "Dach",
+      "power_kw": 850,
+      "lat": 50.941,
+      "lon": 6.96
+    },
+    {
+      "unit_id": "DEMO-005",
+      "name": "PV Demo Hessen",
+      "operator": "Demo Operator",
+      "state": "Hessen",
+      "city": "Darmstadt",
+      "type": "Dach",
+      "power_kw": 45,
+      "lat": 49.872,
+      "lon": 8.651
+    }
+  ]
+}
