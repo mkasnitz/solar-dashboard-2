@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solar-Dashboard Deutschland</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9T/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+  <style>
+    :root { --bg:#f6f7f4; --surface:#fff; --surface-2:#fbfbf8; --text:#1d271f; --muted:#6b756d; --border:#d9ddd7; --primary:#0c6a5c; --primary-2:#12b886; --primary-soft:#e8f7f2; --shadow:0 8px 24px rgba(20,24,22,.08); --radius:18px; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); }
+    .layout { display:grid; grid-template-columns:380px 1fr; min-height:100vh; }
+    .panel { background:var(--surface); border-right:1px solid var(--border); padding:24px; overflow:auto; }
+    .brand { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+    .logo { width:40px; height:40px; border-radius:12px; background:linear-gradient(180deg,#0c6a5c,#12b886); display:grid; place-items:center; color:#fff; box-shadow:var(--shadow); }
+    h1 { margin:0; font-size:28px; line-height:1.1; letter-spacing:-.03em; }
+    .sub { margin:8px 0 22px; color:var(--muted); line-height:1.55; font-size:15px; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:16px; box-shadow:var(--shadow); }
+    .label { display:block; font-size:13px; color:var(--muted); margin-bottom:8px; }
+    .row { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .pill { display:inline-flex; align-items:center; justify-content:center; padding:6px 10px; border-radius:999px; background:var(--primary-soft); color:var(--primary); font-size:13px; font-weight:700; }
+    input[type="range"] { width:100%; accent-color:var(--primary); margin-top:12px; }
+    select { width:100%; border:1px solid var(--border); border-radius:12px; padding:12px 14px; font:inherit; background:var(--surface-2); }
+    .stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .stat { background:var(--surface-2); border:1px solid var(--border); border-radius:14px; padding:14px; }
+    .stat .k { font-size:12px; color:var(--muted); margin-bottom:6px; }
+    .stat .v { font-size:21px; font-weight:800; letter-spacing:-.03em; }
+    .status { font-size:13px; line-height:1.55; color:var(--muted); }
+    .status strong { color:var(--text); }
+    .map-wrap { position:relative; }
+    #map { width:100%; height:100vh; }
+    .legend { position:absolute; right:16px; bottom:16px; z-index:500; background:rgba(255,255,255,.95); border:1px solid var(--border); border-radius:16px; padding:12px 14px; max-width:320px; box-shadow:var(--shadow); font-size:12px; line-height:1.45; }
+    .swatch { width:10px; height:10px; display:inline-block; border-radius:999px; background:var(--primary-2); margin-right:8px; }
+    .meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .meta span { background:#f2f4f1; color:var(--muted); border-radius:999px; padding:4px 8px; font-size:12px; }
+    .empty { padding:18px; background:#fff8eb; color:#8a5a00; border-radius:14px; border:1px solid #ecd6a8; font-size:13px; line-height:1.55; }
+    @media (max-width:900px) { .layout { grid-template-columns:1fr; } .panel { border-right:none; border-bottom:1px solid var(--border); } #map { height:64vh; } }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="panel">
+      <div class="brand">
+        <div class="logo" aria-label="Solar dashboard logo">☀</div>
+        <div>
+          <h1>Solar-Dashboard</h1>
+          <div class="sub" style="margin:4px 0 0">Deutschland · täglich aktualisiert</div>
+        </div>
+      </div>
+      <p class="sub">Dieses Dashboard lädt vorbereitete MaStR-Daten aus einer JSON-Datei. Die Daten werden außerhalb des Browsers täglich aktualisiert und danach automatisch im Frontend angezeigt.</p>
+      <div class="card"><label class="label">Bundesland</label><select id="stateSelect"><option value="">Alle Bundesländer</option></select></div>
+      <div class="card"><div class="row"><div><div class="label" style="margin-bottom:4px">Mindestleistung</div><strong>Nettonennleistung</strong></div><div class="pill" id="powerBadge">100 kW</div></div><input id="powerSlider" type="range" min="1" max="100000" step="1" value="100" /></div>
+      <div class="card"><div class="stats"><div class="stat"><div class="k">Geladene Anlagen</div><div class="v" id="loadedStat">0</div></div><div class="stat"><div class="k">Sichtbar</div><div class="v" id="visibleStat">0</div></div><div class="stat"><div class="k">Letztes Update</div><div class="v" id="updatedStat" style="font-size:15px">–</div></div><div class="stat"><div class="k">Quelle</div><div class="v" style="font-size:15px">MaStR JSON</div></div></div></div>
+      <div class="card status" id="statusBox"><strong>Status:</strong> Lade Daten …</div>
+      <div class="card"><div class="label">Projektlogik</div><div class="meta"><span>Tägliche Aktualisierung</span><span>GitHub Actions</span><span>Statisches Frontend</span><span>Klickbare Marker</span></div></div>
+      <div id="emptyBox" class="empty" hidden>Es wurden noch keine JSON-Daten erzeugt. Führe zuerst den Update-Workflow aus oder lege eine Beispieldatei in <code>data/solar-latest.json</code> ab.</div>
+    </aside>
+    <main class="map-wrap"><div id="map"></div><div class="legend"><div><span class="swatch"></span><strong>Solaranlage</strong></div><div>Die Karte zeigt vorbereitete Standortdaten. Der tägliche Datenjob schreibt die Datei <code>data/solar-latest.json</code>; das Frontend lädt nur diese Datei und bleibt dadurch schnell und stabil.</div></div></main>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+  <script>
+    const map = L.map('map').setView([51.1657, 10.4515], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:18, attribution:'&copy; OpenStreetMap-Mitwirkende' }).addTo(map);
+    const clusterGroup = L.markerClusterGroup({ spiderfyOnMaxZoom:true, showCoverageOnHover:false, zoomToBoundsOnClick:true, disableClusteringAtZoom:11 }).addTo(map);
+    const slider = document.getElementById('powerSlider');
+    const powerBadge = document.getElementById('powerBadge');
+    const stateSelect = document.getElementById('stateSelect');
+    const loadedStat = document.getElementById('loadedStat');
+    const visibleStat = document.getElementById('visibleStat');
+    const updatedStat = document.getElementById('updatedStat');
+    const statusBox = document.getElementById('statusBox');
+    const emptyBox = document.getElementById('emptyBox');
+    let allData = [];
+    function fmtKw(v){ return `${Number(v).toLocaleString('de-DE')} kW`; }
+    function setStatus(text){ statusBox.innerHTML = `<strong>Status:</strong> ${text}`; }
+    function popupHtml(item){ return `<div style="min-width:240px;line-height:1.5"><strong>${item.name||'Solaranlage'}</strong><br><strong>Leistung:</strong> ${item.power_kw ? fmtKw(item.power_kw) : 'k. A.'}<br><strong>Ort:</strong> ${item.city || 'k. A.'}<br><strong>Bundesland:</strong> ${item.state || 'k. A.'}<br><strong>Betreiber:</strong> ${item.operator || 'k. A.'}<br><strong>Typ:</strong> ${item.type || 'k. A.'}<br><strong>MaStR:</strong> ${item.unit_id || 'k. A.'}</div>`; }
+    function populateStates(data){ const states=[...new Set(data.map(d=>d.state).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de')); stateSelect.innerHTML='<option value="">Alle Bundesländer</option>'; states.forEach(state=>{ const opt=document.createElement('option'); opt.value=state; opt.textContent=state; stateSelect.appendChild(opt); }); }
+    function render(){ const minPower=Number(slider.value); const selectedState=stateSelect.value; powerBadge.textContent=fmtKw(minPower); const filtered=allData.filter(d=>Number.isFinite(d.lat)&&Number.isFinite(d.lon)&&Number.isFinite(d.power_kw)&&d.power_kw>=minPower&&(!selectedState||d.state===selectedState)); clusterGroup.clearLayers(); const bounds=[]; filtered.forEach(item=>{ const marker=L.circleMarker([item.lat,item.lon],{ radius:item.power_kw>=50000?8:item.power_kw>=10000?6:4, weight:1, color:'#0c6a5c', fillColor:'#12b886', fillOpacity:0.72 }).bindPopup(popupHtml(item)); clusterGroup.addLayer(marker); bounds.push([item.lat,item.lon]); }); visibleStat.textContent=filtered.length.toLocaleString('de-DE'); if(bounds.length){ map.fitBounds(bounds,{padding:[28,28],maxZoom:9}); setStatus(`${filtered.length.toLocaleString('de-DE')} Anlagen sichtbar. Der Filter reagiert live auf Leistung und Bundesland.`); } else if(allData.length){ map.setView([51.1657,10.4515],6); setStatus('Mit den aktuellen Filtern sind keine Anlagen sichtbar. Reduziere den Leistungswert oder entferne das Bundesland-Filter.'); } }
+    async function init(){ try{ const res=await fetch('./data/solar-latest.json',{cache:'no-store'}); if(!res.ok) throw new Error(`HTTP ${res.status}`); const payload=await res.json(); allData=payload.items || []; loadedStat.textContent=allData.length.toLocaleString('de-DE'); updatedStat.textContent=payload.updated_at ? new Date(payload.updated_at).toLocaleString('de-DE') : '–'; if(!allData.length){ emptyBox.hidden=false; setStatus('JSON-Datei gefunden, aber ohne Daten. Prüfe das Update-Skript.'); return; } emptyBox.hidden=true; populateStates(allData); render(); } catch(err){ emptyBox.hidden=false; setStatus(`Daten konnten noch nicht geladen werden (${err.message}). Lege zuerst eine aktuelle JSON-Datei ab oder führe den Workflow aus.`); } }
+    slider.addEventListener('input', render);
+    stateSelect.addEventListener('change', render);
+    init();
+  </script>
+</body>
+</html>
