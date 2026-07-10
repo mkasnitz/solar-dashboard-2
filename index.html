@@ -54,7 +54,7 @@
       </div>
       <p class="sub">Dieses Dashboard lädt vorbereitete MaStR-Daten aus einer JSON-Datei. Die Daten werden außerhalb des Browsers täglich aktualisiert und danach automatisch im Frontend angezeigt.</p>
       <div class="card"><label class="label">Bundesland</label><select id="stateSelect"><option value="">Alle Bundesländer</option></select></div>
-      <div class="card"><div class="row"><div><div class="label" style="margin-bottom:4px">Mindestleistung</div><strong>Nettonennleistung</strong></div><div class="pill" id="powerBadge">100 kW</div></div><input id="powerSlider" type="range" min="1" max="100000" step="1" value="100" /></div>
+      <div class="card"><div class="row"><div><div class="label" style="margin-bottom:4px">Mindestleistung</div><strong>Nettonennleistung</strong></div><div class="pill" id="powerBadge">0 kW</div></div><input id="powerSlider" type="range" min="0" max="100000" step="1" value="0" /></div>
       <div class="card"><div class="stats"><div class="stat"><div class="k">Geladene Anlagen</div><div class="v" id="loadedStat">0</div></div><div class="stat"><div class="k">Sichtbar</div><div class="v" id="visibleStat">0</div></div><div class="stat"><div class="k">Letztes Update</div><div class="v" id="updatedStat" style="font-size:15px">–</div></div><div class="stat"><div class="k">Quelle</div><div class="v" style="font-size:15px">MaStR JSON</div></div></div></div>
       <div class="card status" id="statusBox"><strong>Status:</strong> Lade Daten …</div>
       <div class="card"><div class="label">Projektlogik</div><div class="meta"><span>Tägliche Aktualisierung</span><span>GitHub Actions</span><span>Statisches Frontend</span><span>Klickbare Marker</span></div></div>
@@ -68,6 +68,7 @@
     const map = L.map('map').setView([51.1657, 10.4515], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:18, attribution:'&copy; OpenStreetMap-Mitwirkende' }).addTo(map);
     const clusterGroup = L.markerClusterGroup({ spiderfyOnMaxZoom:true, showCoverageOnHover:false, zoomToBoundsOnClick:true, disableClusteringAtZoom:11 }).addTo(map);
+
     const slider = document.getElementById('powerSlider');
     const powerBadge = document.getElementById('powerBadge');
     const stateSelect = document.getElementById('stateSelect');
@@ -76,13 +77,103 @@
     const updatedStat = document.getElementById('updatedStat');
     const statusBox = document.getElementById('statusBox');
     const emptyBox = document.getElementById('emptyBox');
+
     let allData = [];
+
     function fmtKw(v){ return `${Number(v).toLocaleString('de-DE')} kW`; }
-    function setStatus(text){ statusBox.innerHTML = `<strong>Status:</strong> ${text}`; }
-    function popupHtml(item){ return `<div style="min-width:240px;line-height:1.5"><strong>${item.name||'Solaranlage'}</strong><br><strong>Leistung:</strong> ${item.power_kw ? fmtKw(item.power_kw) : 'k. A.'}<br><strong>Ort:</strong> ${item.city || 'k. A.'}<br><strong>Bundesland:</strong> ${item.state || 'k. A.'}<br><strong>Betreiber:</strong> ${item.operator || 'k. A.'}<br><strong>Typ:</strong> ${item.type || 'k. A.'}<br><strong>MaStR:</strong> ${item.unit_id || 'k. A.'}</div>`; }
-    function populateStates(data){ const states=[...new Set(data.map(d=>d.state).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de')); stateSelect.innerHTML='<option value="">Alle Bundesländer</option>'; states.forEach(state=>{ const opt=document.createElement('option'); opt.value=state; opt.textContent=state; stateSelect.appendChild(opt); }); }
-    function render(){ const minPower=Number(slider.value); const selectedState=stateSelect.value; powerBadge.textContent=fmtKw(minPower); const filtered=allData.filter(d=>Number.isFinite(d.lat)&&Number.isFinite(d.lon)&&Number.isFinite(d.power_kw)&&d.power_kw>=minPower&&(!selectedState||d.state===selectedState)); clusterGroup.clearLayers(); const bounds=[]; filtered.forEach(item=>{ const marker=L.circleMarker([item.lat,item.lon],{ radius:item.power_kw>=50000?8:item.power_kw>=10000?6:4, weight:1, color:'#0c6a5c', fillColor:'#12b886', fillOpacity:0.72 }).bindPopup(popupHtml(item)); clusterGroup.addLayer(marker); bounds.push([item.lat,item.lon]); }); visibleStat.textContent=filtered.length.toLocaleString('de-DE'); if(bounds.length){ map.fitBounds(bounds,{padding:[28,28],maxZoom:9}); setStatus(`${filtered.length.toLocaleString('de-DE')} Anlagen sichtbar. Der Filter reagiert live auf Leistung und Bundesland.`); } else if(allData.length){ map.setView([51.1657,10.4515],6); setStatus('Mit den aktuellen Filtern sind keine Anlagen sichtbar. Reduziere den Leistungswert oder entferne das Bundesland-Filter.'); } }
-    async function init(){ try{ const res=await fetch('./data/solar-latest.json',{cache:'no-store'}); if(!res.ok) throw new Error(`HTTP ${res.status}`); const payload=await res.json(); allData=payload.items || []; loadedStat.textContent=allData.length.toLocaleString('de-DE'); updatedStat.textContent=payload.updated_at ? new Date(payload.updated_at).toLocaleString('de-DE') : '–'; if(!allData.length){ emptyBox.hidden=false; setStatus('JSON-Datei gefunden, aber ohne Daten. Prüfe das Update-Skript.'); return; } emptyBox.hidden=true; populateStates(allData); render(); } catch(err){ emptyBox.hidden=false; setStatus(`Daten konnten noch nicht geladen werden (${err.message}). Lege zuerst eine aktuelle JSON-Datei ab oder führe den Workflow aus.`); } }
+
+    function setStatus(text){
+      statusBox.innerHTML = `<strong>Status:</strong> ${text}`;
+    }
+
+    function popupHtml(item){
+      return `<div style="min-width:240px;line-height:1.5">
+        <strong>${item.name || 'Solaranlage'}</strong><br>
+        <strong>Leistung:</strong> ${item.power_kw ? fmtKw(item.power_kw) : 'k. A.'}<br>
+        <strong>Ort:</strong> ${item.city || 'k. A.'}<br>
+        <strong>Bundesland:</strong> ${item.state || 'k. A.'}<br>
+        <strong>Betreiber:</strong> ${item.operator || 'k. A.'}<br>
+        <strong>Typ:</strong> ${item.type || 'k. A.'}<br>
+        <strong>MaStR:</strong> ${item.unit_id || 'k. A.'}
+      </div>`;
+    }
+
+    function populateStates(data){
+      const states = [...new Set(data.map(d => d.state).filter(Boolean))].sort((a,b) => a.localeCompare(b,'de'));
+      stateSelect.innerHTML = '<option value="">Alle Bundesländer</option>';
+      states.forEach(state => {
+        const opt = document.createElement('option');
+        opt.value = state;
+        opt.textContent = state;
+        stateSelect.appendChild(opt);
+      });
+    }
+
+    function render(){
+      const minPower = Number(slider.value);
+      const selectedState = stateSelect.value;
+      powerBadge.textContent = fmtKw(minPower);
+
+      const filtered = allData.filter(d =>
+        Number.isFinite(d.lat) &&
+        Number.isFinite(d.lon) &&
+        Number.isFinite(d.power_kw) &&
+        d.power_kw >= minPower &&
+        (!selectedState || d.state === selectedState)
+      );
+
+      clusterGroup.clearLayers();
+      const bounds = [];
+
+      filtered.forEach(item => {
+        const marker = L.circleMarker([item.lat, item.lon], {
+          radius: item.power_kw >= 50000 ? 8 : item.power_kw >= 10000 ? 6 : 4,
+          weight: 1,
+          color: '#0c6a5c',
+          fillColor: '#12b886',
+          fillOpacity: 0.72
+        }).bindPopup(popupHtml(item));
+
+        clusterGroup.addLayer(marker);
+        bounds.push([item.lat, item.lon]);
+      });
+
+      visibleStat.textContent = filtered.length.toLocaleString('de-DE');
+
+      if(bounds.length){
+        map.fitBounds(bounds, { padding:[28,28], maxZoom:9 });
+        setStatus(`${filtered.length.toLocaleString('de-DE')} Anlagen sichtbar. Der Filter reagiert live auf Leistung und Bundesland.`);
+      } else if(allData.length){
+        map.setView([51.1657,10.4515],6);
+        setStatus('Mit den aktuellen Filtern sind keine Anlagen sichtbar. Reduziere den Leistungswert oder entferne das Bundesland-Filter.');
+      }
+    }
+
+    async function init(){
+      try{
+        const res = await fetch('./data/solar-latest.json', { cache:'no-store' });
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const payload = await res.json();
+        allData = payload.items || [];
+        loadedStat.textContent = allData.length.toLocaleString('de-DE');
+        updatedStat.textContent = payload.updated_at ? new Date(payload.updated_at).toLocaleString('de-DE') : '–';
+
+        if(!allData.length){
+          emptyBox.hidden = false;
+          setStatus('JSON-Datei gefunden, aber ohne Daten. Prüfe das Update-Skript.');
+          return;
+        }
+
+        emptyBox.hidden = true;
+        populateStates(allData);
+        render();
+      } catch(err){
+        emptyBox.hidden = false;
+        setStatus(`Daten konnten noch nicht geladen werden (${err.message}). Lege zuerst eine aktuelle JSON-Datei ab oder führe den Workflow aus.`);
+      }
+    }
+
     slider.addEventListener('input', render);
     stateSelect.addEventListener('change', render);
     init();
